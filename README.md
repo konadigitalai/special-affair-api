@@ -29,3 +29,5 @@ Run the API with `uvicorn app.main:app --reload`. Run the worker with `python -m
 Create a migration with `alembic revision --autogenerate -m "description"` and apply migrations with `alembic upgrade head`. Alembic exclusively uses `DATABASE_MIGRATION_URL`.
 
 Run checks with `pytest` and `mypy app tests`.
+
+After applying migrations, load the idempotent development catalog with `python -m scripts.seed_local`.

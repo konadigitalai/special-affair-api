@@ -16,7 +16,9 @@ def product_record() -> SimpleNamespace:
         slug="classic-bouquet",
         name="Classic Bouquet",
         description="Seasonal flowers",
-        variants=[SimpleNamespace(id=VARIANT_ID, sku="BOUQUET-CLASSIC", slug="standard", name="Standard")],
+        materials="Leather",
+        care="Wipe clean",
+        variants=[SimpleNamespace(id=VARIANT_ID, sku="BOUQUET-CLASSIC", slug="standard", name="Standard", colour="Ivory", material="Leather", price_minor=3550000, currency="INR")],
         media=[],
         categories=[],
         collections=[],
@@ -47,8 +49,12 @@ async def test_get_product_returns_not_found_error(client: AsyncClient, monkeypa
     assert response.json()["error"]["correlation_id"]
 
 
-async def test_get_product_rejects_invalid_uuid(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/products/not-a-uuid")
+async def test_get_product_uses_public_slug(client: AsyncClient, monkeypatch: MonkeyPatch) -> None:
+    async def fake_get(*_: object, **__: object) -> SimpleNamespace:
+        return product_record()
 
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "validation_error"
+    monkeypatch.setattr(catalog_router, "get_published_product", fake_get)
+    response = await client.get("/api/v1/products/classic-bouquet")
+
+    assert response.status_code == 200
+    assert response.json()["slug"] == "classic-bouquet"

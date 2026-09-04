@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.core.config import get_settings
 from app.db.base import Base
 from app.modules.catalog import models as catalog_models  # noqa: F401
+from app.modules.content import models as content_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

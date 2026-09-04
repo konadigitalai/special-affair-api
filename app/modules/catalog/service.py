@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, with_loader_criteria
@@ -28,6 +26,6 @@ async def list_published_products(session: AsyncSession, *, limit: int, offset: 
     return list(result.unique().all())
 
 
-async def get_published_product(session: AsyncSession, product_id: UUID) -> Product | None:
-    query = _published_product_query().where(Product.id == product_id)
+async def get_published_product(session: AsyncSession, slug: str) -> Product | None:
+    query = _published_product_query().where(Product.slug == slug)
     return (await session.scalars(query)).unique().one_or_none()

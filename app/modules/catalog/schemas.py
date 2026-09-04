@@ -12,6 +12,10 @@ class VariantRead(CatalogSchema):
     sku: str
     slug: str
     name: str
+    colour: str | None
+    material: str | None
+    price_minor: int
+    currency: str
 
 
 class CategoryRead(CatalogSchema):
@@ -39,11 +43,13 @@ class ProductSummary(CatalogSchema):
     slug: str
     name: str
     description: str | None
+    materials: str | None
     variants: list[VariantRead]
     media: list[MediaRead]
 
 
 class ProductDetail(ProductSummary):
+    care: str | None
     categories: list[CategoryRead]
     collections: list[CollectionRead]
 
