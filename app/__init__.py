@@ -1,0 +1,1 @@
+"""SpecialAffair API package."""
