@@ -1,4 +1,7 @@
 from datetime import datetime
+import secrets
+import time
+from uuid import UUID
 
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -21,3 +24,15 @@ class TimestampMixin:
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+def uuid7() -> UUID:
+    """Generate a time-ordered UUIDv7 without requiring a third-party package."""
+    timestamp_ms = int(time.time() * 1000) & ((1 << 48) - 1)
+    random_bits = secrets.randbits(74)
+    value = timestamp_ms << 80
+    value |= 0x7 << 76
+    value |= ((random_bits >> 62) & 0xFFF) << 64
+    value |= 0b10 << 62
+    value |= random_bits & ((1 << 62) - 1)
+    return UUID(int=value)

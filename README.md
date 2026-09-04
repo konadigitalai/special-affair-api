@@ -1,6 +1,15 @@
 # specialaffair-api
 
-Phase 1 FastAPI infrastructure for SpecialAffair. It intentionally contains no business-domain API or tables.
+FastAPI modular-monolith backend for SpecialAffair. The local foundation and the public Catalog read APIs are under development.
+
+## Implemented API surface
+
+- `GET /health/live`
+- `GET /health/ready`
+- `GET /api/v1/products`
+- `GET /api/v1/products/{id}`
+
+Catalog responses expose only published products and active variants. Catalog management APIs, pricing, inventory, and cart behavior are subsequent milestones.
 
 ## Local setup
 
