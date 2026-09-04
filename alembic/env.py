@@ -15,6 +15,11 @@ from app.core.config import get_settings
 from app.db.base import Base
 from app.modules.catalog import models as catalog_models  # noqa: F401
 from app.modules.content import models as content_models  # noqa: F401
+from app.ai.shopping_copilot import models as copilot_models  # noqa: F401
+from app.modules.cart import models as cart_models  # noqa: F401
+from app.modules.checkout import models as checkout_models  # noqa: F401
+from app.modules.orders import models as order_models  # noqa: F401
+from app.modules.payments import models as payment_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

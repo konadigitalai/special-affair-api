@@ -28,7 +28,14 @@ class Settings(BaseSettings):
     database_migration_url: str
     auth0_domain: str
     auth0_audience: str
+    frontend_urls: str = "http://localhost:3000,http://127.0.0.1:3000"
+    sandbox_payment_secret: str = "local-sandbox-secret"
+    token_signing_secret: str = "change-this-local-token-secret"
     log_level: str = "INFO"
+
+    @property
+    def allowed_frontend_origins(self) -> list[str]:
+        return [origin.strip().rstrip("/") for origin in self.frontend_urls.split(",") if origin.strip()]
 
     @property
     def application_database(self) -> DatabaseConnection:

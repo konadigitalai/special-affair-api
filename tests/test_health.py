@@ -16,3 +16,12 @@ async def test_readiness_fails_when_database_is_unreachable(client: AsyncClient)
 async def test_correlation_id_is_echoed(client: AsyncClient) -> None:
     response = await client.get("/health/live", headers={"X-Correlation-ID": "test-correlation-id"})
     assert response.headers["X-Correlation-ID"] == "test-correlation-id"
+
+
+async def test_frontend_origin_is_allowed_by_cors(client: AsyncClient) -> None:
+    response = await client.options(
+        "/api/v1/products",
+        headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "GET"},
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
