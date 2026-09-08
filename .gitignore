@@ -1,4 +1,11 @@
 .env
+.env.*
+!.env.example
+.python/
+.uv-cache/
+.pg-test/
+.test-artifacts/
+pytest-cache-files-*/
 .venv/
 __pycache__/
 *.py[cod]

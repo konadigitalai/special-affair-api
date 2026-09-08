@@ -1,6 +1,14 @@
 from uuid import UUID
+from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, String
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    String,
+    DateTime,
+    Integer,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -9,9 +17,18 @@ from app.db.base import Base, TimestampMixin, uuid7
 
 class Checkout(TimestampMixin, Base):
     __tablename__ = "checkouts"
-    __table_args__ = (CheckConstraint("status IN ('open', 'awaiting_payment', 'completed', 'expired')", name="status_allowed"),)
-    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid7)
-    cart_id: Mapped[UUID] = mapped_column(ForeignKey("carts.id", ondelete="RESTRICT"), unique=True, index=True)
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('open', 'awaiting_payment', 'completed', 'expired')",
+            name="status_allowed",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid7
+    )
+    cart_id: Mapped[UUID] = mapped_column(
+        ForeignKey("carts.id", ondelete="RESTRICT"), unique=True, index=True
+    )
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="open")
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     phone: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -29,3 +46,6 @@ class IdempotencyKey(TimestampMixin, Base):
     operation: Mapped[str] = mapped_column(String(100), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     resource_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    response_body: Mapped[dict | None] = mapped_column(JSONB)
+    response_status: Mapped[int | None] = mapped_column(Integer)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

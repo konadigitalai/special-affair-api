@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "specialaffair-api"
 version = "0.1.0"
-description = "SpecialAffair Phase 1 API foundation"
+description = "SpecialAffair modular commerce API and background worker"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic>=1.13,<2",
@@ -23,7 +23,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+azure = ["azure-monitor-opentelemetry>=1.6,<2"]
 dev = [
+  "ruff>=0.9,<1",
   "mypy>=1.11,<2",
   "pytest>=8,<9",
   "pytest-asyncio>=0.24,<2",
@@ -41,3 +43,7 @@ python_version = "3.12"
 plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
 check_untyped_defs = true
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["azure.*"]
+ignore_missing_imports = true

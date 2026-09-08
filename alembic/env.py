@@ -4,6 +4,7 @@ Migration rule: expand/contract only. Never rename or drop a column in a single
 migration; add nullable, backfill, dual-write, switch reads, then drop in a later
 release. Use CREATE INDEX CONCURRENTLY for indexes on large tables.
 """
+
 import asyncio
 from logging.config import fileConfig
 
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db import models  # noqa: F401
 from app.modules.catalog import models as catalog_models  # noqa: F401
 from app.modules.content import models as content_models  # noqa: F401
 from app.ai.shopping_copilot import models as copilot_models  # noqa: F401

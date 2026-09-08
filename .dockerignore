@@ -1,8 +1,13 @@
 .git
 .env
+.env.*
 .venv
+.python
+.uv-cache
+.pg-test
+.test-artifacts
 __pycache__
 .pytest_cache
 .mypy_cache
+pytest-cache-files-*
 tests
-*.pyc

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     session_id: UUID | None = None
+    session_token: str | None = Field(default=None, max_length=200)
 
 
 class ProductEvidence(BaseModel):
@@ -28,9 +29,9 @@ class ProposedAction(BaseModel):
 
 class ChatResponse(BaseModel):
     session_id: UUID
+    session_token: str | None = None
     answer: str
     intent: str
     products: list[ProductEvidence] = Field(default_factory=list)
     proposed_actions: list[ProposedAction] = Field(default_factory=list)
     disclaimer: str | None = None
-

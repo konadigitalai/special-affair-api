@@ -5,8 +5,14 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 os.environ.setdefault("ENVIRONMENT", "dev")
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://app:placeholder@127.0.0.1:1/specialaffair")
-os.environ.setdefault("DATABASE_MIGRATION_URL", "postgresql+asyncpg://migrator:placeholder@127.0.0.1:1/specialaffair")
+os.environ.setdefault("REQUESTS_PER_MINUTE", "100000")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+asyncpg://app:placeholder@127.0.0.1:1/specialaffair"
+)
+os.environ.setdefault(
+    "DATABASE_MIGRATION_URL",
+    "postgresql+asyncpg://migrator:placeholder@127.0.0.1:1/specialaffair",
+)
 os.environ.setdefault("AUTH0_DOMAIN", "example.auth0.com")
 os.environ.setdefault("AUTH0_AUDIENCE", "https://api.example.test")
 

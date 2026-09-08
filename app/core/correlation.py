@@ -1,5 +1,6 @@
 from contextvars import ContextVar, Token
 from uuid import uuid4
+import re
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -19,8 +20,19 @@ class CorrelationIdMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        incoming = next((value.decode("utf-8") for key, value in scope["headers"] if key.lower() == CORRELATION_HEADER), None)
-        correlation_id = incoming or str(uuid4())
+        incoming = next(
+            (
+                value.decode("utf-8", errors="replace")
+                for key, value in scope["headers"]
+                if key.lower() == CORRELATION_HEADER
+            ),
+            None,
+        )
+        correlation_id = (
+            incoming
+            if incoming and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", incoming)
+            else str(uuid4())
+        )
         token: Token[str | None] = correlation_id_var.set(correlation_id)
 
         async def send_with_header(message: Message) -> None:

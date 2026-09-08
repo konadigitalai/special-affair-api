@@ -69,14 +69,20 @@ async def bootstrap() -> None:
         async with engine.begin() as connection:
             for role in ROLES:
                 exists = await connection.scalar(
-                    text("SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :role)"),
+                    text(
+                        "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :role)"
+                    ),
                     {"role": role},
                 )
                 password = passwords[role]
                 if exists:
-                    await connection.exec_driver_sql(f"ALTER ROLE {role} LOGIN PASSWORD '{password}'")
+                    await connection.exec_driver_sql(
+                        f"ALTER ROLE {role} LOGIN PASSWORD '{password}'"
+                    )
                 else:
-                    await connection.exec_driver_sql(f"CREATE ROLE {role} LOGIN PASSWORD '{password}'")
+                    await connection.exec_driver_sql(
+                        f"CREATE ROLE {role} LOGIN PASSWORD '{password}'"
+                    )
 
             await connection.exec_driver_sql("GRANT sa_migrate TO CURRENT_USER")
             await connection.exec_driver_sql(
@@ -85,7 +91,9 @@ async def bootstrap() -> None:
             await connection.exec_driver_sql("GRANT ALL ON SCHEMA public TO sa_migrate")
             await connection.exec_driver_sql("GRANT USAGE ON SCHEMA public TO sa_app")
             await connection.exec_driver_sql("GRANT USAGE ON SCHEMA public TO sa_read")
-            await connection.exec_driver_sql("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
+            await connection.exec_driver_sql(
+                "REVOKE CREATE ON SCHEMA public FROM PUBLIC"
+            )
             await connection.exec_driver_sql(
                 "ALTER DEFAULT PRIVILEGES FOR ROLE sa_migrate IN SCHEMA public "
                 "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO sa_app"
@@ -116,12 +124,9 @@ async def bootstrap() -> None:
     )
     replace_env_lines(app_url, migration_url)
 
-    print(f"sa_migrate password: {passwords['sa_migrate']}")
-    print(f"sa_app password: {passwords['sa_app']}")
-    print(f"sa_read password: {passwords['sa_read']}")
-    print()
-    print(f"DATABASE_URL={app_url}")
-    print(f"DATABASE_MIGRATION_URL={migration_url}")
+    print(
+        "Database roles configured; application and migration credentials saved to ignored .env"
+    )
 
 
 if __name__ == "__main__":
