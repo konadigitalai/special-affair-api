@@ -22,11 +22,13 @@ def token_hash(token: str) -> str:
 
 
 class ItemRequest(BaseModel):
+    version: int | None = Field(default=None, ge=1)
     variant_id: UUID
     quantity: int = Field(ge=1, le=20)
 
 
 class QuantityRequest(BaseModel):
+    version: int | None = Field(default=None, ge=1)
     quantity: int = Field(ge=1, le=20)
 
 
@@ -61,6 +63,7 @@ def cart_response(cart: Cart, token: str | None = None) -> dict[str, object]:
             "product_name": x.variant.product.name,
             "variant_name": x.variant.name,
             "colour": x.variant.colour,
+            "size": x.variant.size,
             "quantity": x.quantity,
             "unit_price_minor": x.unit_price_minor,
             "line_total_minor": x.unit_price_minor * x.quantity,
@@ -72,6 +75,8 @@ def cart_response(cart: Cart, token: str | None = None) -> dict[str, object]:
     result: dict[str, object] = {
         "id": str(cart.id),
         "status": cart.status,
+        "version": cart.version,
+        "coupon": cart.coupon_code or "",
         "items": items,
         "subtotal_minor": subtotal,
         "shipping_minor": 0,
@@ -111,6 +116,8 @@ async def add_item(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     cart = await load_cart(session, cart_id, x_cart_token)
+    if payload.version is not None and payload.version != cart.version:
+        raise AppError(409, "cart_changed", "Your bag changed. Refresh it and try again.")
     variant = await session.scalar(
         select(Variant)
         .join(Product)
@@ -122,6 +129,10 @@ async def add_item(
     )
     if variant is None:
         raise AppError(404, "variant_not_found", "Variant not found")
+    from app.modules.inventory.router import availability
+    stock = await availability(variant.id, session)
+    if payload.quantity > stock["available"]:
+        raise AppError(409, "insufficient_stock", "This quantity is no longer available.")
     from app.modules.pricing.service import effective_price
 
     price = await effective_price(session, variant, cart.currency)
@@ -139,6 +150,7 @@ async def add_item(
                 currency=variant.currency,
             )
         )
+    cart.version += 1
     await session.commit()
     return cart_response(await load_cart(session, cart.id, x_cart_token))
 
@@ -156,6 +168,13 @@ async def update_item(
     if item is None:
         raise AppError(404, "cart_item_not_found", "Cart item not found")
     item.quantity = payload.quantity
+    if payload.version is not None and payload.version != cart.version:
+        raise AppError(409, "cart_changed", "Your bag changed. Refresh it and try again.")
+    from app.modules.inventory.router import availability
+    stock = await availability(item.variant_id, session)
+    if payload.quantity > stock["available"]:
+        raise AppError(409, "insufficient_stock", "This quantity is no longer available.")
+    cart.version += 1
     await session.commit()
     return cart_response(await load_cart(session, cart.id, x_cart_token))
 
@@ -172,5 +191,6 @@ async def remove_item(
     if item is None:
         raise AppError(404, "cart_item_not_found", "Cart item not found")
     await session.delete(item)
+    cart.version += 1
     await session.commit()
     return cart_response(await load_cart(session, cart.id, x_cart_token))

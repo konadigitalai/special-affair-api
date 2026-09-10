@@ -9,16 +9,19 @@ from app.modules.orders.models import Order, OrderStatusHistory
 from app.modules.payments.models import PaymentAttempt
 
 
-async def retry_payment(checkout_id, payload, cart_token, session, settings):
+async def retry_payment(checkout_id, payload, cart_token, session, settings, authorized_order_id=None):
     from app.modules.checkout.router import load_cart_for_checkout
 
     checkout = await session.get(Checkout, checkout_id)
     if checkout is None:
         raise AppError(404, "checkout_not_found", "Checkout not found")
-    await load_cart_for_checkout(session, checkout.cart_id, cart_token)
+    if authorized_order_id is None:
+        await load_cart_for_checkout(session, checkout.cart_id, cart_token)
     order = await session.scalar(
         select(Order).where(Order.checkout_id == checkout_id).with_for_update()
     )
+    if authorized_order_id is not None and (order is None or order.id != authorized_order_id):
+        raise AppError(404, "order_not_found", "Order not found")
     if (
         order is None
         or order.payment_method == "cod"

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.core.domain import emit, evidence, lock_key, request_digest, transition
 from app.core.exceptions import AppError
-from app.core.security import TokenPayload, require_permissions
+from app.core.security import TokenPayload, require_permissions, optional_token
 from app.db.base import uuid7
 from app.db.session import get_session
 from app.modules.approvals.models import Approval
@@ -54,11 +54,12 @@ class ReturnTransition(BaseModel):
 @router.post("/returns", status_code=201)
 async def request_return(
     payload: ReturnRequest,
-    x_order_token: Annotated[str, Header()],
+    x_order_token: Annotated[str | None, Header()] = None,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
+    actor: TokenPayload | None = Depends(optional_token),
 ) -> dict:
-    await confirmation(payload.order_id, x_order_token, session)
+    await confirmation(payload.order_id, x_order_token, session, actor)
     order = await session.get(Order, payload.order_id, with_for_update=True)
     if order is None or order.status != "delivered":
         raise AppError(409, "return_ineligible", "Only delivered orders are eligible")

@@ -35,6 +35,7 @@ class Cart(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="INR")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    coupon_code: Mapped[str | None] = mapped_column(String(100))
     customer_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("customers.id"), index=True
     )

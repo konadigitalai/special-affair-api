@@ -32,6 +32,10 @@ def create_app() -> FastAPI:
         docs_url=None if settings.environment == "prod" else "/docs",
         redoc_url=None if settings.environment == "prod" else "/redoc",
     )
+    from app.core.abuse import AbuseGuard
+    application.add_middleware(
+        AbuseGuard, requests_per_minute=settings.requests_per_minute
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_frontend_origins,
@@ -43,13 +47,9 @@ def create_app() -> FastAPI:
             "Idempotency-Key",
             "X-Cart-Token",
             "X-Order-Token",
+            "X-Wishlist-Token",
             "X-Correlation-ID",
         ],
-    )
-    from app.core.abuse import AbuseGuard
-
-    application.add_middleware(
-        AbuseGuard, requests_per_minute=settings.requests_per_minute
     )
     application.add_middleware(CorrelationIdMiddleware)
     application.include_router(health_router)

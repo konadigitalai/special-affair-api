@@ -176,6 +176,17 @@ async def add_consent(
     return {"id": str(record.id), **payload.model_dump()}
 
 
+@router.delete("/customers/me/addresses/{address_id}")
+async def delete_address(address_id: UUID, actor: TokenPayload = Depends(verify_token), session: AsyncSession = Depends(get_session)):
+    customer = await customer_for(session, actor.sub)
+    address = await session.get(Address, address_id)
+    if address is None or address.customer_id != customer.id:
+        raise AppError(404, "address_not_found", "Address not found")
+    await session.delete(address)
+    await session.commit()
+    return {"deleted": True}
+
+
 @router.post("/carts/{cart_id}/merge")
 async def merge_cart(
     cart_id: UUID,
@@ -263,6 +274,7 @@ async def merge_cart(
                 )
             )
     evidence(session, actor.sub, "cart.merged", "cart", target.id)
+    target.version += 1
     await session.commit()
     result = cart_response(await load_cart(session, target.id, new_token), new_token)
     result["adjustments"] = changes

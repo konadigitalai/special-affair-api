@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     requests_per_minute: int = Field(default=120, ge=1)
     payment_provider: str = "sandbox"
+    sandbox_browser_payments_enabled: bool = False
     payment_return_url: str = "http://localhost:3000/payment/upi-return"
     reservation_ttl_minutes: int = Field(default=15, ge=1, le=60)
     worker_poll_seconds: float = Field(default=1, gt=0)

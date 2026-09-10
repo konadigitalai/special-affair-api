@@ -89,7 +89,7 @@ async def submit_checkout(
                 session, item.variant, cart.currency
             )
             item.currency = cart.currency
-        promotion = await best_promotion(session, cart.currency)
+        promotion = await best_promotion(session, cart.currency, cart.coupon_code)
         discounts = {
             x.variant_id: line_discount(
                 x.unit_price_minor * x.quantity, promotion.percent_off
@@ -100,6 +100,9 @@ async def submit_checkout(
         }
         discount_total = sum(discounts.values())
         subtotal = sum(x.unit_price_minor * x.quantity for x in cart.items)
+        total = subtotal - discount_total + settings.shipping_fee_minor
+        if payload.expected_total_minor is not None and payload.expected_total_minor != total:
+            raise AppError(409, "price_changed", "Your bag total changed. Refresh your bag before placing the order.")
         tax = sum(
             included_tax(
                 x.unit_price_minor * x.quantity - discounts[x.variant_id],
@@ -149,7 +152,7 @@ async def submit_checkout(
                     order_id=order.id,
                     variant_id=item.variant.id,
                     product_name=item.variant.product.name,
-                    variant_name=item.variant.name,
+                    variant_name=(f"{item.variant.name} / {item.variant.size}" if item.variant.size and item.variant.size not in item.variant.name.split(" / ") else item.variant.name),
                     sku=item.variant.sku,
                     quantity=item.quantity,
                     unit_price_minor=item.unit_price_minor,

@@ -70,6 +70,13 @@ async def verify_token(
         raise HTTPException(status_code=401, detail="Invalid or expired bearer token") from exc
 
 
+async def optional_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    settings: Settings = Depends(get_settings),
+) -> TokenPayload | None:
+    return await verify_token(credentials, settings) if credentials else None
+
+
 def require_permissions(*perms: str) -> Callable[..., Coroutine[Any, Any, TokenPayload]]:
     """Require token permissions; resource-specific business authorization belongs in the domain layer."""
     async def dependency(token: TokenPayload = Depends(verify_token)) -> TokenPayload:

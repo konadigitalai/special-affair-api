@@ -4,6 +4,11 @@ FastAPI modular monolith with PostgreSQL, Auth0 authorization, a separate pollin
 worker, and sandbox commerce workflows. This repository contains backend code only.
 Read [the architecture review](docs/architecture-review.md) for coverage and remaining work.
 
+The sibling React storefront is now integrated. See `../INTEGRATION.md` for environment
+setup, customer flow coverage and verification. Migration `0009` adds garment sizes,
+cart coupon persistence and guest support ownership. The optional `scripts.seed_apparel`
+command adds development clothing samples without overwriting existing products.
+
 ## Local setup
 
 Requires Python 3.12 and PostgreSQL 16. A local `.env` exists in this workspace and

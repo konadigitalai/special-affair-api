@@ -13,6 +13,7 @@ class VariantRead(CatalogSchema):
     slug: str
     name: str
     colour: str | None
+    size: str | None = None
     material: str | None
     price_minor: int
     currency: str

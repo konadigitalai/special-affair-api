@@ -44,3 +44,8 @@ from app.modules.catalog.media import router as media_router
 
 router.include_router(privacy_router)
 router.include_router(media_router)
+
+from app.modules.storefront import router as storefront_router
+router.include_router(storefront_router)
+from app.modules.wishlist import router as wishlist_router
+router.include_router(wishlist_router)

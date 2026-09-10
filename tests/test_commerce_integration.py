@@ -286,6 +286,9 @@ async def test_fulfillment_delivery_and_return(commerce):
         },
     )
     assert response.status_code == 201, response.text
+    view = (await client.get(f"/api/v1/orders/{order['id']}", headers={"X-Order-Token": order["order_token"]})).json()
+    assert len(view["shipments"]) == 2
+    assert view["returns"][0]["items"][0]["quantity"] == 1
     async with factory() as session:
         stock = await session.scalar(select(InventoryItem))
         assert stock.on_hand == 3 and stock.reserved == 0
@@ -319,6 +322,8 @@ async def test_unknown_outbox_event_is_quarantined(commerce):
             aggregate_id=variant_id,
             event_type="Unknown",
             payload={},
+            # Make the event due without relying on PostgreSQL/Python clock precision.
+            next_attempt_at=datetime.now(timezone.utc) - timedelta(seconds=1),
         )
         session.add(event)
         await session.commit()

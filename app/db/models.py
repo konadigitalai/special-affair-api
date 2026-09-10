@@ -19,3 +19,4 @@ from app.workers import models as workers
 from app.modules.support import models as support
 
 from app.modules.promotions import models as promotions
+from app.modules import wishlist_models

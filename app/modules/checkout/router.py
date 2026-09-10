@@ -20,6 +20,7 @@ from app.modules.cart.router import load_cart, token_hash
 from app.modules.checkout.models import Checkout, IdempotencyKey
 from app.modules.orders.models import Order, OrderItem
 from app.modules.payments.models import PaymentAttempt
+from app.core.security import TokenPayload, optional_token
 
 router = APIRouter(tags=["checkout"])
 
@@ -42,6 +43,7 @@ class CheckoutRequest(BaseModel):
     shipping_address: Address
     payment_method: Literal["card", "upi", "cod"]
     provider_token: str | None = None
+    expected_total_minor: int | None = Field(default=None, ge=0)
 
 
 class AddressRequest(BaseModel):
@@ -84,7 +86,17 @@ async def order_payload(
             .order_by(OrderItem.created_at)
         )
     ).all()
+    from app.modules.fulfillment.models import Fulfillment, Shipment
+    from app.modules.returns.models import Return, ReturnItem
+    payments = (await session.scalars(select(PaymentAttempt).where(PaymentAttempt.order_id == order.id).order_by(PaymentAttempt.id))).all()
+    shipments = (await session.scalars(select(Shipment).join(Fulfillment).where(Fulfillment.order_id == order.id))).all()
+    returns = (await session.scalars(select(Return).where(Return.order_id == order.id))).all()
+    return_lines = (await session.scalars(select(ReturnItem).join(Return).where(Return.order_id == order.id))).all()
     data: dict[str, object] = {
+        "checkout_id": str(order.checkout_id),
+        "payments": [{"id": str(x.id), "status": x.status, "provider": x.provider} for x in payments],
+        "shipments": [{"carrier": x.carrier, "tracking_number": x.tracking_number, "status": x.status} for x in shipments],
+        "returns": [{"id": str(x.id), "status": x.status, "items": [{"order_item_id": str(i.order_item_id), "quantity": i.quantity} for i in return_lines if i.return_id == x.id]} for x in returns],
         "id": str(order.id),
         "order_number": order.order_number,
         "status": order.status,
@@ -120,13 +132,13 @@ async def order_payload(
 
 
 @router.get("/shipping-methods")
-async def shipping_methods() -> dict[str, object]:
+async def shipping_methods(settings: Settings = Depends(get_settings)) -> dict[str, object]:
     return {
         "items": [
             {
                 "id": "complimentary",
-                "name": "Complimentary",
-                "price_minor": 0,
+                "name": "Complimentary" if settings.shipping_fee_minor == 0 else "Standard",
+                "price_minor": settings.shipping_fee_minor,
                 "currency": "INR",
             }
         ]
@@ -229,12 +241,16 @@ async def sandbox_webhook(
 @router.get("/orders/{order_id}/confirmation")
 async def confirmation(
     order_id: UUID,
-    x_order_token: Annotated[str, Header()],
+    x_order_token: Annotated[str | None, Header()] = None,
     session: AsyncSession = Depends(get_session),
+    actor: TokenPayload | None = Depends(optional_token),
 ) -> dict[str, object]:
     order = await session.get(Order, order_id)
-    if order is None or not secrets.compare_digest(
-        order.order_token_hash, token_hash(x_order_token)
-    ):
+    owned = bool(order and x_order_token and secrets.compare_digest(order.order_token_hash, token_hash(x_order_token)))
+    if order and actor and order.customer_id:
+        from app.modules.customers.models import Customer
+        customer = await session.get(Customer, order.customer_id)
+        owned = owned or bool(customer and customer.auth_subject == actor.sub)
+    if not owned or order is None:
         raise AppError(404, "order_not_found", "Order not found")
     return await order_payload(session, order)

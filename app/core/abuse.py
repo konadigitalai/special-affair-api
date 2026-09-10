@@ -35,7 +35,7 @@ class AbuseGuard(BaseHTTPMiddleware):
             self.windows.popitem(last=False)
         if count >= self.limit:
             return JSONResponse(
-                {"error": {"code": "rate_limit_exceeded"}},
+                {"error": {"code": "rate_limit_exceeded", "message": "Too many requests. Please wait a moment and try again."}},
                 status_code=429,
                 headers={"Retry-After": str(max(1, int(60 - (now - since))))},
             )
@@ -56,6 +56,7 @@ class AbuseGuard(BaseHTTPMiddleware):
                 "/api/v1/customers",
                 "/api/v1/orders",
                 "/api/v1/carts",
+                "/api/v1/wishlists",
                 "/api/v1/checkout",
                 "/api/v1/support",
                 "/api/v1/operations",

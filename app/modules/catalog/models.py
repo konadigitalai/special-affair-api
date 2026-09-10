@@ -60,6 +60,7 @@ class Variant(TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(String(200), nullable=False)
     name: Mapped[str] = mapped_column(String(250), nullable=False)
     colour: Mapped[str | None] = mapped_column(String(100), index=True)
+    size: Mapped[str | None] = mapped_column(String(30))
     material: Mapped[str | None] = mapped_column(String(150), index=True)
     price_minor: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="INR", server_default="INR")

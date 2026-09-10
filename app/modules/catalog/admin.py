@@ -1,19 +1,50 @@
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.domain import evidence, lock_key
 from app.core.exceptions import AppError
-from app.core.security import TokenPayload, require_permissions
+from app.core.security import TokenPayload, require_permissions, verify_token
 from app.db.session import get_session
 from app.modules.catalog.models import Product, Variant
 from app.modules.pricing.models import Price, PriceBook
-from app.modules.promotions.models import Promotion
+from app.modules.promotions.models import Promotion, Coupon
 
 router = APIRouter(prefix="/admin", tags=["catalog administration"])
+
+STAFF_PERMISSIONS = frozenset({
+    "product:update", "product:publish", "price:manage", "promotion:manage",
+    "inventory:adjust", "order:manage", "fulfillment:manage", "support:manage",
+    "return:manage", "refund:request", "refund:approve", "audit:read",
+    "operations:manage", "privacy:approve",
+})
+
+
+async def staff_session(actor: TokenPayload = Depends(verify_token)) -> TokenPayload:
+    if not STAFF_PERMISSIONS.intersection(actor.permissions):
+        raise HTTPException(status_code=403, detail="Staff access required")
+    return actor
+
+
+@router.get("/session")
+async def admin_session(actor: TokenPayload = Depends(staff_session)) -> dict:
+    return {"subject": actor.sub, "permissions": sorted(STAFF_PERMISSIONS.intersection(actor.permissions))}
+
+
+@router.get("/products")
+async def admin_products(
+    limit: int = Query(default=30, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    actor: TokenPayload = Depends(staff_session),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    if not {"product:update", "product:publish"}.intersection(actor.permissions):
+        raise HTTPException(status_code=403, detail="Catalog access required")
+    rows = (await session.scalars(select(Product).order_by(Product.created_at.desc(), Product.id).offset(offset).limit(limit + 1))).all()
+    return {"items": [{"id": str(p.id), "name": p.name, "slug": p.slug, "status": p.status, "version": p.version} for p in rows[:limit]], "has_more": len(rows) > limit}
 
 
 class ProductCreate(BaseModel):
@@ -23,6 +54,9 @@ class ProductCreate(BaseModel):
 
 
 class VariantCreate(BaseModel):
+    size: str | None = Field(default=None, max_length=30)
+    colour: str | None = Field(default=None, max_length=100)
+    material: str | None = Field(default=None, max_length=150)
     sku: str = Field(min_length=1, max_length=100)
     slug: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=200)
     name: str = Field(min_length=1, max_length=250)
@@ -208,3 +242,26 @@ async def add_promotion(
     evidence(session, actor.sub, "promotion.created", "promotion", promotion.id)
     await session.commit()
     return {"id": str(promotion.id), "status": promotion.status}
+
+
+class CouponCreate(BaseModel):
+    code: str = Field(pattern=r"^[A-Za-z0-9_-]{2,100}$")
+
+
+@router.post("/promotions/{promotion_id}/coupons", status_code=201)
+async def create_coupon(promotion_id: UUID, payload: CouponCreate,
+                        actor: TokenPayload = Depends(require_permissions("promotion:manage")),
+                        session: AsyncSession = Depends(get_session)):
+    code = payload.code.upper()
+    await lock_key(session, "coupon", code)
+    if await session.get(Promotion, promotion_id) is None:
+        raise AppError(404, "promotion_not_found", "Promotion not found")
+    from sqlalchemy import func
+    if await session.scalar(select(Coupon.id).where(func.upper(Coupon.code) == code)):
+        raise AppError(409, "coupon_exists", "Coupon code already exists")
+    coupon = Coupon(promotion_id=promotion_id, code=code)
+    session.add(coupon)
+    await session.flush()
+    evidence(session, actor.sub, "coupon.created", "coupon", coupon.id)
+    await session.commit()
+    return {"id": str(coupon.id), "code": coupon.code}
