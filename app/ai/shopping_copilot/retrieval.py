@@ -5,8 +5,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.catalog.models import Product, Variant
 
-COLOURS = ("black", "ivory", "blush", "sage", "brown", "sand")
+COLOURS = ("black", "white", "ivory", "blush", "sage", "brown", "sand")
 MATERIALS = ("nappa", "leather", "silk")
+IGNORED_WORDS = {
+    "show",
+    "find",
+    "with",
+    "under",
+    "below",
+    "less",
+    "than",
+    "suitable",
+    "product",
+    "products",
+    "piece",
+    "pieces",
+    "please",
+}
 
 
 def parse_price_limit(message: str) -> int | None:
@@ -40,7 +55,7 @@ async def retrieve_products(
     words = [
         word
         for word in re.findall(r"[a-zA-Z]{3,}", lowered)
-        if word not in {"show", "find", "with", "under", "suitable", "product"}
+        if word not in IGNORED_WORDS
     ]
     query = (
         select(Product, Variant)

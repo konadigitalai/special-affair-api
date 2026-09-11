@@ -1,23 +1,37 @@
-"""Explicitly approved client-review catalogue. Inserts only; never changes existing products."""
+"""Idempotent client-review catalogue matching the approved storefront range."""
 import asyncio
+
 from sqlalchemy import select
+
 from app.core.config import get_settings
 from app.core.domain import lock_key
 from app.db.session import get_session_factory
-from app.modules.catalog.models import Category, Collection, Product, Variant, MediaMetadata
+from app.modules.catalog.models import (
+    Category,
+    Collection,
+    MediaMetadata,
+    Product,
+    Variant,
+)
 from app.modules.content.models import ContentPage
-from app.modules.inventory.models import Location, InventoryItem, StockMovement
+from app.modules.inventory.models import InventoryItem, Location, StockMovement
 
 ROWS = [
     ("Core Bra", 3200, "Black", "Inner Affair", "Sports Bras", "Women", "/images/flagship/core-bra.webp"),
     ("Move Legging", 4800, "Black", "Form", "Bottoms", "Women", "/images/flagship/move-legging.webp"),
-    ("Essential Tee", 3600, "Black", "Essential Affair", "Tops", "Unisex", "/images/catalog/product-tshirt.png"),
-    ("Active Short", 4200, "Black", "Form", "Bottoms", "Unisex", "/images/catalog/product-shorts.png"),
-    ("The Hoodie", 6800, "Black", "Shell", "Outerwear", "Unisex", "/images/catalog/product-hoodie.png"),
-    ("Relaxed Pant", 5800, "Warm Grey", "Essential Affair", "Bottoms", "Unisex", "/images/catalog/product-lounge.png"),
-    ("Layer Shell Jacket", 8900, "Taupe", "Shell", "Outerwear", "Unisex", "/images/catalog/product-shell.png"),
-    ("Everyday Tank", 2800, "Black", "Inner Affair", "Tops", "Unisex", "/images/catalog/product-tank.png"),
+    ("Essential Tee", 3600, "White", "Essential Affair", "Tops", "Unisex", "/images/flagship/essential-tee-packshot-hd-v2.png"),
+    ("Active Short", 4200, "Black", "Form", "Bottoms", "Unisex", "/images/flagship/active-short-packshot-hd-v2.png"),
+    ("The Hoodie", 6800, "Warm Grey", "Shell", "Outerwear", "Unisex", "/images/flagship/hoodie-packshot-hd-v2.png"),
+    ("Relaxed Pant", 5800, "Black", "Essential Affair", "Bottoms", "Unisex", "/images/flagship/relaxed-pant-packshot-hd-v2.png"),
+    ("Balance Bra", 3400, "Ivory", "Inner Affair", "Sports Bras", "Women", "/images/flagship/balance-bra-packshot-hd-v2.png"),
+    ("Move Jacket", 8900, "Black", "Shell", "Outerwear", "Unisex", "/images/flagship/move-jacket-packshot-hd-v2.png"),
+    ("Lift Tank", 3200, "Black", "Form", "Tops", "Women", "/images/flagship/lift-tank-packshot-hd-v2.png"),
+    ("Everyday Sweat", 5400, "Warm Grey", "Essential Affair", "Tops", "Unisex", "/images/flagship/everyday-sweat-packshot-hd-v2.png"),
+    ("Core Cap", 2800, "Black", "Shell", "Accessories", "Unisex", "/images/flagship/core-cap-packshot-hd-v2.png"),
+    ("Daily Socks (2 Pack)", 1200, "White", "Essential Affair", "Accessories", "Unisex", "/images/flagship/daily-socks-packshot-hd-v2.png"),
 ]
+
+RETIRED_SLUGS = ["dev-layer-shell-jacket", "dev-everyday-tank"]
 STORIES = [
     ("a-different-kind-of-movement", "A Different Kind of Movement", "Places that move us, and why they matter.", "coast", "Movement does not always mean moving faster. Sometimes it is the slower walk, the longer route home, the moment spent looking out at the sea.\n\nThis first visual study looks outward: open coastlines, changing light and the space between one part of a day and the next. A wardrobe can make room for those transitions, too."),
     ("material-matters", "Material Matters", "A closer look at what goes into every piece.", "material", "Before a silhouette, there is a surface. The grain of a knit. The fall of a sleeve. The way a fabric catches the light.\n\nOur material studies begin with these everyday observations. Texture and construction are part of the experience of wearing a garment.\n\nExplore the product pages for the available fabric and care information. Final composition and performance specifications will accompany the approved collection."),
@@ -37,11 +51,13 @@ async def seed():
             location = Location(name="Client review sample warehouse")
             session.add(location)
             await session.flush()
+        for slug in RETIRED_SLUGS:
+            retired = await session.scalar(select(Product).where(Product.slug == slug))
+            if retired is not None:
+                retired.status = "archived"
         created = 0
-        for i, (name, price, colour, world, category, gender, photo) in enumerate(ROWS):
-            slug = "dev-" + name.lower().replace(" ", "-")
-            if await session.scalar(select(Product.id).where(Product.slug == slug)):
-                continue
+        for name, price, colour, world, category, gender, photo in ROWS:
+            slug = "dev-" + name.lower().replace(" ", "-").replace("(", "").replace(")", "")
             categories = []
             for label in [gender, category]:
                 cat_slug = label.lower().replace(" ", "-")
@@ -57,21 +73,45 @@ async def seed():
                 collection = Collection(slug=world_slug, name=world)
                 session.add(collection)
                 await session.flush()
-            product = Product(slug=slug, name=name, description="A considered silhouette for movement and everyday life. Development sample for client review; specifications and pricing are illustrative.", materials="Illustrative fabric study. Final composition awaits the approved product range.", care="Follow the approved garment care label. Sample imagery does not establish fabric specifications.", status="published", featured=True, categories=categories, collections=[collection])
-            session.add(product)
-            await session.flush()
-            # Attach the packshot and material detail to the product, so API consumers use the same assets.
-            for position, url in enumerate([photo, "/images/flagship/material.webp"]):
-                session.add(MediaMetadata(product_id=product.id, storage_key=f"dev-flagship/{slug}/{position}", public_url=url, alt_text=name if position == 0 else "Illustrative material study", position=position))
-            for position, size in enumerate(["XS", "S", "M", "L", "XL"]):
-                variant = Variant(product_id=product.id, sku=f"DEV-FLAGSHIP-{i}-{size}", slug=f"{colour.lower().replace(' ', '-')}-{size.lower()}", name=f"{colour} / {size}", colour=colour, size=size, price_minor=price*100, currency="INR", status="active", position=position)
+            product = await session.scalar(select(Product).where(Product.slug == slug))
+            if product is None:
+                product = Product(slug=slug, name=name, description="A considered silhouette for movement and everyday life. Development sample for client review; specifications and pricing are illustrative.", materials="Illustrative fabric study. Final composition awaits the approved product range.", care="Follow the approved garment care label. Sample imagery does not establish fabric specifications.", status="published", featured=True, categories=categories, collections=[collection])
+                session.add(product)
+                await session.flush()
+                # Product-level media keeps catalogue, PDP and search imagery consistent.
+                for position, url in enumerate([photo, "/images/flagship/material.webp"]):
+                    session.add(MediaMetadata(product_id=product.id, storage_key=f"dev-flagship/{slug}/{position}", public_url=url, alt_text=name if position == 0 else "Illustrative material study", position=position))
+                created += 1
+            else:
+                product.status = "published"
+                product.featured = True
+                product.name = name
+                primary_media = await session.scalar(
+                    select(MediaMetadata).where(
+                        MediaMetadata.product_id == product.id,
+                        MediaMetadata.variant_id.is_(None),
+                        MediaMetadata.position == 0,
+                    )
+                )
+                if primary_media is not None:
+                    primary_media.public_url = photo
+                    primary_media.alt_text = name
+            sizes = [None] if category == "Accessories" else ["XS", "S", "M", "L", "XL", "XXL"]
+            for position, size in enumerate(sizes):
+                variant = await session.scalar(select(Variant).where(Variant.product_id == product.id, Variant.colour == colour, Variant.size == size))
+                if variant is not None:
+                    variant.price_minor = price * 100
+                    variant.status = "active"
+                    continue
+                size_code = size or "OS"
+                sku_name = slug.removeprefix("dev-").upper()
+                variant = Variant(product_id=product.id, sku=f"DEV-FLAGSHIP-{sku_name}-{size_code}", slug=f"{colour.lower().replace(' ', '-')}-{size_code.lower()}", name=f"{colour} / {size_code}", colour=colour, size=size, price_minor=price*100, currency="INR", status="active", position=position)
                 session.add(variant)
                 await session.flush()
                 stock = InventoryItem(variant_id=variant.id, location_id=location.id, on_hand=20, reserved=0, safety_stock=0)
                 session.add(stock)
                 await session.flush()
                 session.add(StockMovement(inventory_item_id=stock.id, quantity=20, reason="User-approved development apparel fixture", actor_id="dev-flagship-seed"))
-            created += 1
         core = await session.scalar(select(Product).where(Product.slug == "dev-core-bra"))
         if core is not None:
             for position, size in enumerate(["XS", "S", "M", "L", "XL"]):
@@ -98,7 +138,7 @@ async def seed():
             if not await session.scalar(select(ContentPage.id).where(ContentPage.slug == slug)):
                 session.add(ContentPage(slug=slug, title=title, body=body, kind="page", published=True, hero_url="/images/flagship/material.webp"))
         await session.commit()
-    print(f"Created {created} development apparel products; existing products and stock preserved")
+    print(f"Created {created} development apparel products; catalogue synchronized")
 
 if __name__ == "__main__":
     asyncio.run(seed())

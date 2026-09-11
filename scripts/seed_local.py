@@ -10,8 +10,22 @@ from app.modules.content.models import ContentPage, NavigationItem, StorefrontSe
 
 async def seed() -> None:
     async with get_session_factory()() as session:
+        announcement_text = "FREE SHIPPING ON ALL ORDERS ABOVE ₹5,000"
+        announcement = await session.scalar(
+            select(StorefrontSetting).where(StorefrontSetting.key == "announcement")
+        )
+        if announcement is None:
+            session.add(
+                StorefrontSetting(
+                    key="announcement", value={"text": announcement_text}
+                )
+            )
+        else:
+            announcement.value = {"text": announcement_text}
+
         if await session.scalar(select(Product.id).limit(1)) is not None:
-            print("Seed skipped: catalog data already exists")
+            await session.commit()
+            print("Storefront settings refreshed; catalog data already exists")
             return
 
         bags = Category(slug="bags", name="Bags")
@@ -34,7 +48,6 @@ async def seed() -> None:
         session.add_all(
             [
                 product,
-                StorefrontSetting(key="announcement", value={"text": "Complimentary shipping across India"}),
                 StorefrontSetting(key="region", value={"country": "India", "currency": "INR", "symbol": "₹"}),
                 NavigationItem(label="New In", url="/shop?sort=newest", position=1, published=True),
                 NavigationItem(label="Shop", url="/shop", position=2, published=True),
